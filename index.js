@@ -1,5 +1,5 @@
 const express = require('express')
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express()
 const cors = require('cors');
 require('dotenv').config()
@@ -31,26 +31,75 @@ async function run() {
     //data base connect 
      const database = client.db("jobs-portal");
     const jobCollection = database.collection("recruter-jobs");
+     const companyCollection = database.collection("recruter-company");
+    const userCollection = database.collection('user')
 
    //recruter job post 
   app.post('/api/jobs',async(req,res)=>{
     const jbody=req.body
-    const result = await jobCollection.insertOne(jbody)
+    const newJob = {
+      ...jbody,
+      createdAt:new Date()
+    }
+    const result = await jobCollection.insertOne(newJob)
     res.send(result)
   })
+ // get user 
+ app.get('/api/users',async(req,res)=>{
+  const cursor = userCollection.find().skip(5)
+  const result = await cursor.toArray()
+  res.send(result)
+ })
+   // get all  company related info
+  app.get('/api/companies',async(req,res)=>{
+    const result = await companyCollection.find().toArray()
+    res.send(result)
+  })
+
+
+
   // recruter job post 
-  app.get('/api/jobs',async(req,res)=>{
-    const query={}
-    if(req.query.companyId){
-      req.query=req.query.companyId
+ app.get('/api/jobs', async (req, res) => {
+  const query = {};
+  if (req.query.companyId) {
+    query.companyId = req.query.companyId;
+  }
+  if (req.query.status) {
+    query.status = req.query.status;
+  }
+  const result = await jobCollection.find(query).toArray();
+  res.send(result);
+});
+// get a particular job by specific company id
+app.get('/api/jobs/:id',async(req,res) => {
+  const id =req.params.id
+  const result = await jobCollection.findOne({_id: new ObjectId(id)})
+  res.send(result)
+})
+    
+
+  // recruter company related api
+  app.post('/api/companies',async(req,res)=>{
+    const company = req.body
+    const newCompany ={
+      ...company,
+      createdAt: new Date()
     }
-    if(req.query.status){
-      req.query=req.query.status
-    }
-    const cursor = jobCollection.find(query)
-    const result = await cursor.toArray()
+    const result = await companyCollection.insertOne(company)
     res.send(result)
   })
+  //recruter company information of own 
+  app.get('/api/my/companies',async(req,res)=>{
+    const query={}
+    if(req.query.recruiterId){
+        query.recruiterId = req.query.recruiterId;
+
+    }
+    const result = await companyCollection.findOne(query)
+    res.send(result || {})
+  })
+
+
 
 
 
