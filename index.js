@@ -33,6 +33,9 @@ async function run() {
     const jobCollection = database.collection("recruter-jobs");
      const companyCollection = database.collection("recruter-company");
     const userCollection = database.collection('user')
+    const applicationCollection = database.collection('applications')
+    const plansCollection = database.collection('plans')
+    const subscriptionCollection = database.collection('subscription')
 
    //recruter job post 
   app.post('/api/jobs',async(req,res)=>{
@@ -44,6 +47,67 @@ async function run() {
     const result = await jobCollection.insertOne(newJob)
     res.send(result)
   })
+  //all job seeker get the application 
+  app.get('/api/applications',async(req,res)=>{
+    const query={}
+    // const c = req.query.applicantId
+    // console.log(c,'this is req.query in server get ')
+    if(req.query.applicantId){
+      query.applicantId=req.query.applicantId
+          // console.log(query.applicantId,'this is query.applicantId in server get ')
+    }
+    if(req.query.jobId){
+      query.jobId = req.query.jobId
+    }
+    const cursor = applicationCollection.find(query)
+    const result = await cursor.toArray()
+    res.send(result)
+  })
+
+  // plans
+  app.get('/api/plans',async(req,res)=>{
+    const query = {}
+    if(req.query.plan_id){
+      query.id=req.query.plan_id
+    }
+    const plan = await plansCollection.findOne(query)
+    res.send(plan)
+  })
+  //subscription post using metadata
+  app.post('/api/subscription',async(req,res)=>{
+    const metabody = req.body
+    const subInfo ={
+      ...metabody,
+      createdAt: new Date()
+    }
+    const result = await subscriptionCollection.insertOne(subInfo)
+    res.send(result)
+    //update user plan like seeker_free to seeker_pro
+    const filter = {email:metabody.email}
+    const updateDocument = {
+      $set:{
+        plan:metabody.planId,
+      }
+    }
+    const updateResult = await userCollection.updateOne(filter,updateDocument)
+    res.send(updateResult)
+  })
+
+
+  //all job seeker application api
+  app.post('/api/applications',async(req,res)=>{
+    const appbody = req.body
+    const newAplication = {
+      ...appbody,
+      createdAt: new Date()
+    }
+    const result = await applicationCollection.insertOne(newAplication)
+    res.send(result)
+  }) 
+
+
+
+
  // get user 
  app.get('/api/users',async(req,res)=>{
   const cursor = userCollection.find().skip(5)
@@ -70,6 +134,7 @@ async function run() {
   const result = await jobCollection.find(query).toArray();
   res.send(result);
 });
+
 // get a particular job by specific company id
 app.get('/api/jobs/:id',async(req,res) => {
   const id =req.params.id
