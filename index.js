@@ -115,10 +115,70 @@ async function run() {
   res.send(result)
  })
    // get all  company related info
+  // app.get('/api/companies',async(req,res)=>{
+  //   const result = await companyCollection.find().toArray()
+  //   res.send(result)
+  // })
+  
+  // inefficient way to join collection or notpipeline 
   app.get('/api/companies',async(req,res)=>{
-    const result = await companyCollection.find().toArray()
-    res.send(result)
+    const companies = await companyCollection.find().toArray()
+
+    // apply loop to get one by one company from allcompanies
+   
+   for(const company of companies ){
+    const filter = {
+      companyId: company._id.toString()
+    }
+    const jobCount = await  jobCollection.countDocuments(filter)
+    company.jobCount = jobCount
+   }
+
+    res.send(companies)
   })
+
+
+  // efficient way to join collection or pipeline 
+  app.get('/api/companies2',async(req,res)=>{
+  const pipeline = [
+    {
+      $skip:4
+    },
+    {
+      $limit:5
+    }
+  ]
+  const cursor = companyCollection.aggregate(pipeline);
+  const result = await cursor.toArray()
+  res.send(result)
+  })
+ // this is the 2 of aggregiation pipe line 
+ app.get('/api/starts',async(req,res)=>{
+  const pipeline = [
+    {
+      $group :{
+        _id:'$jobType',
+        count:{
+          $sum: 1
+        }
+      }
+    },
+    {
+      $project:{
+        jobType: '$_id',
+        count:1,
+        _id: 0
+      }
+    },
+    {
+      $sort:{
+        count: 1
+      }
+    }
+  ]
+  const result = await jobCollection.aggregate(pipeline).toArray()
+  res.send(result)
+ })
 
 
 
@@ -153,6 +213,21 @@ app.get('/api/jobs/:id',async(req,res) => {
     const result = await companyCollection.insertOne(company)
     res.send(result)
   })
+
+//company data do update admin thats make new update api
+  app.patch('/api/companies/:id',async(req,res)=>{
+   const id = req.params.id
+   const cbody = req.body
+   const filter = {_id: new ObjectId(id)}
+   const updateData = {
+    $set:{
+     status: cbody.status
+    }
+   }
+   const result = companyCollection.updateOne(filter,updateData)
+   res.send(result)
+  })
+
   //recruter company information of own 
   app.get('/api/my/companies',async(req,res)=>{
     const query={}
