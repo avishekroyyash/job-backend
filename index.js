@@ -23,6 +23,14 @@ app.get('/', (req, res) => {
   res.send('Hello World!')
 })
 
+// apply jwt
+const logger = (req,res,next)=>{
+  console.log('logger middle ware ', req.params)
+  next()
+}
+
+
+
 
 async function run() {
   try {
@@ -36,6 +44,60 @@ async function run() {
     const applicationCollection = database.collection('applications')
     const plansCollection = database.collection('plans')
     const subscriptionCollection = database.collection('subscription')
+    const sessionCollection = database.collection('session')
+
+
+    //token verification 
+    const verifyToken =async(req,res,next) =>{
+  //console.log('verify token headerx',req.headers)
+  const authHeader = req?.headers?.authorization
+  if(!authHeader){
+    return res.status(401).send({message : 'unauthorized'})
+  }
+  const token = authHeader.split(' ')[1]
+  if(!token){
+    return res.status(401).send({message:'unauthrized access'})
+  }
+  const query = {token : token}
+  const session = await sessionCollection.findOne(query)
+  //console.log(session,'this is the user session ');
+  const userId = session?.userId
+  //console.log(userId,'this is user id');
+  const userQuery = {
+    _id : userId
+  }
+  const user = await userCollection.findOne(userQuery)
+  //set data into req object
+  req.user = user ;
+  //console.log('find the user by the id from session',user);
+  next()
+}
+
+// it must be later from verifyToken
+const verifySeeker =async(req,res,next)=>{
+  if(req?.user?.role !== 'seeker'){
+    return res.status(403).send({message : 'forbidden seeker access'})
+  }
+  next()
+}
+const verifyRecruter = async(req,res,next)=>{
+  if(req?.user?.role !== 'recruter'){
+    return res.status(403).send({message : 'fobidden recruter access'})
+  }
+  next()
+}
+
+const verifyAdmin = async(req,res,next) =>{
+  if(req?.user?.role !== 'admin'){
+    return res.status(403).send({message : 'forbidden admin access'})
+  }
+  next()
+}
+
+
+
+
+
 
    //recruter job post 
   app.post('/api/jobs',async(req,res)=>{
@@ -48,13 +110,20 @@ async function run() {
     res.send(result)
   })
   //all job seeker get the application 
-  app.get('/api/applications',async(req,res)=>{
+  app.get('/api/applications',verifyToken,verifySeeker,async(req,res)=>{
     const query={}
     // const c = req.query.applicantId
     // console.log(c,'this is req.query in server get ')
     if(req.query.applicantId){
       query.applicantId=req.query.applicantId
           // console.log(query.applicantId,'this is query.applicantId in server get ')
+        // cheack weathe  for asking user information
+        if(req?.user?._id?.toString() !== req.query.applicantId)  {
+          return res.status(403).send({message : 'forbidden access seeker'})
+        } 
+         // console.log(req.user , req.query.applicantId)
+
+
     }
     if(req.query.jobId){
       query.jobId = req.query.jobId
@@ -109,11 +178,14 @@ async function run() {
 
 
  // get user 
- app.get('/api/users',async(req,res)=>{
-  const cursor = userCollection.find().skip(5)
-  const result = await cursor.toArray()
-  res.send(result)
- })
+//  app.get('/api/users',async(req,res)=>{
+//   const cursor = userCollection.find().skip(5)
+//   const result = await cursor.toArray()
+//   res.send(result)
+//  })
+
+
+
    // get all  company related info
   // app.get('/api/companies',async(req,res)=>{
   //   const result = await companyCollection.find().toArray()
@@ -121,7 +193,7 @@ async function run() {
   // })
   
   // inefficient way to join collection or notpipeline 
-  app.get('/api/companies',async(req,res)=>{
+  app.get('/api/companies',verifyToken,verifyAdmin, async(req,res)=>{
     const companies = await companyCollection.find().toArray()
 
     // apply loop to get one by one company from allcompanies
@@ -214,8 +286,10 @@ app.get('/api/jobs/:id',async(req,res) => {
     res.send(result)
   })
 
+
+
 //company data do update admin thats make new update api
-  app.patch('/api/companies/:id',async(req,res)=>{
+  app.patch('/api/companies/:id',verifyToken,verifyAdmin,async(req,res)=>{
    const id = req.params.id
    const cbody = req.body
    const filter = {_id: new ObjectId(id)}
@@ -227,6 +301,9 @@ app.get('/api/jobs/:id',async(req,res) => {
    const result = companyCollection.updateOne(filter,updateData)
    res.send(result)
   })
+
+
+
 
   //recruter company information of own 
   app.get('/api/my/companies',async(req,res)=>{
